@@ -77,7 +77,7 @@ abstract class AuthTestCase extends TestCase
 
     protected function registerVerifiedUser(string $email = 'jc@example.com'): void
     {
-        $this->auth->register($email, 'Jean Claude', self::PASSWORD);
+        $this->auth->register($email, 'Amina Uwase', self::PASSWORD);
         $this->assertTrue($this->auth->verifyEmail($this->tokenFromLastMail()));
     }
 }

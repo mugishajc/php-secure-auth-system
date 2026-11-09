@@ -12,7 +12,7 @@ final class LoginTest extends AuthTestCase
 {
     public function testUnverifiedUsersCannotSignIn(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
 
         $result = $this->auth->attempt('jc@example.com', self::PASSWORD, '10.0.0.1');
 

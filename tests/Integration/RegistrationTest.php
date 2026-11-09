@@ -11,7 +11,7 @@ final class RegistrationTest extends AuthTestCase
 {
     public function testRegisteringCreatesAnUnverifiedUserWithAnArgonHash(): void
     {
-        $this->auth->register('  JC@Example.com ', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('  JC@Example.com ', 'Amina Uwase', self::PASSWORD);
 
         $user = $this->users->findByEmail('jc@example.com');
 
@@ -26,7 +26,7 @@ final class RegistrationTest extends AuthTestCase
 
     public function testVerificationEmailContainsALink(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
 
         $mail = $this->mailer->last();
         $this->assertSame('jc@example.com', $mail['to']);
@@ -35,7 +35,7 @@ final class RegistrationTest extends AuthTestCase
 
     public function testOnlyTheTokenHashIsStored(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
         $token = $this->tokenFromLastMail();
 
         $stored = $this->pdo->query('SELECT token_hash FROM user_tokens')->fetchAll(\PDO::FETCH_COLUMN);
@@ -45,7 +45,7 @@ final class RegistrationTest extends AuthTestCase
 
     public function testVerificationTokenWorksOnce(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
         $token = $this->tokenFromLastMail();
 
         $this->assertTrue($this->auth->verifyEmail($token));
@@ -55,7 +55,7 @@ final class RegistrationTest extends AuthTestCase
 
     public function testVerificationTokenExpiresAfter24Hours(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
         $token = $this->tokenFromLastMail();
 
         $this->clock->advance(AuthService::VERIFY_TOKEN_TTL + 1);
@@ -72,14 +72,14 @@ final class RegistrationTest extends AuthTestCase
 
     public function testDuplicateEmailDoesNotRevealTheAccount(): void
     {
-        $this->auth->register('jc@example.com', 'Jean Claude', self::PASSWORD);
+        $this->auth->register('jc@example.com', 'Amina Uwase', self::PASSWORD);
 
         // No exception and no second account; the owner gets a heads-up instead.
         $this->auth->register('JC@example.com', 'Someone Else', 'another long passphrase');
 
         $this->assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
         $this->assertSame('Sign-up attempt for your account', $this->mailer->last()['subject']);
-        $this->assertSame('Jean Claude', $this->users->findByEmail('jc@example.com')->name);
+        $this->assertSame('Amina Uwase', $this->users->findByEmail('jc@example.com')->name);
     }
 
     public function testInvalidInputIsReportedPerField(): void
