@@ -15,6 +15,7 @@ final class AuthService
 {
     public const MAX_ATTEMPTS_PER_ACCOUNT = 5;
     public const MAX_ATTEMPTS_PER_IP = 50;
+    public const MAX_RESET_REQUESTS = 3;
 
     public const VERIFY_TOKEN_TTL = 86_400;     // 24 hours
     public const RESET_TOKEN_TTL = 3_600;       // 1 hour
@@ -132,6 +133,13 @@ final class AuthService
             return LoginResult::throttled($this->throttle->availableIn($ipKey));
         }
 
+        if (strlen($password) > 4096) {
+            // Never feed huge inputs to the hasher.
+            $this->throttle->hit($accountKey);
+
+            return LoginResult::invalid();
+        }
+
         $user = $this->users->findByEmail($email);
 
         // Verify against a dummy hash when the user doesn't exist, so the
@@ -157,6 +165,93 @@ final class AuthService
         $this->startAuthenticatedSession($user);
 
         return LoginResult::success($user);
+    }
+
+    /**
+     * Emails a reset link if the account exists. Always returns quietly so
+     * the caller can show the same message for known and unknown emails.
+     */
+    public function requestPasswordReset(string $email, string $ip): void
+    {
+        $email = self::normalizeEmail($email);
+        $key = LoginThrottle::key('reset', $email);
+
+        // At most a few emails per address per window, so the form can't be
+        // used to flood someone's inbox.
+        if ($this->throttle->tooManyAttempts($key, self::MAX_RESET_REQUESTS)) {
+            return;
+        }
+        $this->throttle->hit($key);
+
+        $user = $this->users->findByEmail($email);
+        if ($user === null) {
+            return;
+        }
+
+        // Only the newest link works.
+        $this->tokens->deleteForUser($user->id, TokenRepository::PASSWORD_RESET);
+        $token = $this->issueToken($user->id, TokenRepository::PASSWORD_RESET, self::RESET_TOKEN_TTL);
+
+        $this->mailer->send(
+            $user->email,
+            'Reset your password',
+            "We received a request to reset your password from {$ip}.\n\n"
+            . "{$this->appUrl}/reset-password?token={$token}\n\n"
+            . "The link expires in 1 hour. If you didn't ask for this, you can ignore this email.",
+        );
+    }
+
+    public function isValidResetToken(string $token): bool
+    {
+        return $this->tokens->findValid(
+            TokenRepository::PASSWORD_RESET,
+            $this->tokenGenerator->hash($token),
+            $this->clock->now(),
+        ) !== null;
+    }
+
+    /**
+     * Sets a new password using a reset token. Returns false when the token
+     * is unknown, expired or already used.
+     *
+     * @throws ValidationException when the new password breaks the policy
+     */
+    public function resetPassword(string $token, string $password): bool
+    {
+        $now = $this->clock->now();
+        $row = $this->tokens->findValid(TokenRepository::PASSWORD_RESET, $this->tokenGenerator->hash($token), $now);
+        if ($row === null) {
+            return false;
+        }
+
+        $user = $this->users->findById($row['user_id']);
+        if ($user === null) {
+            return false;
+        }
+
+        $problems = $this->policy->check($password, $user->email);
+        if ($problems !== []) {
+            throw new ValidationException(['password' => $problems]);
+        }
+
+        if (!$this->tokens->consume($row['id'], $now)) {
+            return false;
+        }
+
+        // Bumps session_version, so sessions opened with the old password end.
+        $this->users->changePassword($user->id, $this->hasher->hash($password), $now);
+        $this->tokens->deleteForUser($user->id, TokenRepository::PASSWORD_RESET);
+
+        // Following the link proves control of the inbox.
+        $this->users->markVerified($user->id, $now);
+
+        $this->mailer->send(
+            $user->email,
+            'Your password was changed',
+            "The password for your account was just changed. If this wasn't you, reset it again at {$this->appUrl}/forgot-password.",
+        );
+
+        return true;
     }
 
     /**
