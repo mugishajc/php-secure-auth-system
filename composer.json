@@ -1,0 +1,40 @@
+{
+    "name": "mugishajc/php-secure-auth-system",
+    "description": "Authentication module in plain PHP 8.2 built around secure defaults.",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mugisha Jean Claude"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-mbstring": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SecureAuth\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "setup-db": "php bin/setup-db.php",
+        "serve": "php -S localhost:8000 -t public"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
