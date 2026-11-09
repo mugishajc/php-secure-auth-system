@@ -11,12 +11,14 @@ EMAIL="smoke$RANDOM@example.com"
 
 csrf_from() { grep -o 'name="_csrf" value="[a-f0-9]*"' | head -1 | sed 's/.*value="\([a-f0-9]*\)"/\1/'; }
 status() { curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" "$@"; }
+fail() { echo "FAIL: $1"; exit 1; }
 expect() { if [ "$1" != "$2" ]; then echo "FAIL: $3 (expected $2, got $1)"; exit 1; fi; echo "ok: $3"; }
 
 headers="$(curl -s -D - -o /dev/null "$BASE/login")"
-echo "$headers" | grep -i '^set-cookie' | grep -qi 'httponly' && echo "ok: session cookie is HttpOnly"
-echo "$headers" | grep -i '^set-cookie' | grep -qi 'samesite=lax' && echo "ok: session cookie is SameSite=Lax"
-echo "$headers" | grep -qi '^referrer-policy: no-referrer' && echo "ok: referrer policy"
+echo "$headers" | grep -i '^set-cookie' | grep -qi 'httponly' || fail "session cookie is not HttpOnly"
+echo "$headers" | grep -i '^set-cookie' | grep -qi 'samesite=lax' || fail "session cookie is not SameSite=Lax"
+echo "$headers" | grep -qi '^referrer-policy: no-referrer' || fail "missing Referrer-Policy"
+echo "ok: cookie flags and headers"
 
 expect "$(curl -s -o /dev/null -w '%{http_code}' -d 'email=a@b.c&password=x' "$BASE/login")" 419 "POST without CSRF token is refused"
 
@@ -32,7 +34,8 @@ expect "$(status "$BASE/$link")" 303 "verify email"
 token="$(curl -fsS -c "$JAR" -b "$JAR" "$BASE/login" | csrf_from)"
 expect "$(status -d "_csrf=$token&email=$EMAIL&password=$PASSWORD" "$BASE/login")" 303 "login"
 
-curl -fsS -c "$JAR" -b "$JAR" "$BASE/" | grep -q 'Hello, Smoke Test' && echo "ok: dashboard shows the user"
+curl -fsS -c "$JAR" -b "$JAR" "$BASE/" | grep -q 'Hello, Smoke Test' || fail "dashboard did not show the user"
+echo "ok: dashboard shows the user"
 
 rm -f "$JAR"
 echo "Smoke test passed."
